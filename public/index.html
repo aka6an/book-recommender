@@ -291,7 +291,11 @@
                 }
 
                 if (!data.recommendations) {
-                    throw new Error('Response missing recommendations field');
+                    throw new Error(`Response missing recommendations field. Got: ${JSON.stringify(Object.keys(data))}`);
+                }
+
+                if (!Array.isArray(data.recommendations)) {
+                    throw new Error(`recommendations is not an array. Type: ${typeof data.recommendations}`);
                 }
 
                 displayRecommendations(data.recommendations);
