@@ -1,6 +1,8 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 module.exports = async function (context, req) {
+    context.log('Function triggered. Method:', req.method);
+    
     // Handle CORS preflight
     if (req.method === 'OPTIONS') {
         context.res = {
@@ -14,25 +16,30 @@ module.exports = async function (context, req) {
         return;
     }
 
+    // Ensure we always return JSON
+    const jsonResponse = (status, body) => {
+        context.res = {
+            status,
+            headers: { 'Content-Type': 'application/json' },
+            body: typeof body === 'string' ? { error: body } : body
+        };
+    };
+
     try {
+        context.log('Request body:', JSON.stringify(req.body));
+        
         const preferences = req.body?.preferences;
 
         if (!preferences || preferences.trim() === '') {
-            context.res = {
-                status: 400,
-                headers: { 'Content-Type': 'application/json' },
-                body: { error: 'Please provide your reading preferences' }
-            };
+            jsonResponse(400, 'Please provide your reading preferences');
             return;
         }
 
         const apiKey = process.env.GEMINI_API_KEY;
+        context.log('API Key configured:', !!apiKey);
+        
         if (!apiKey) {
-            context.res = {
-                status: 500,
-                headers: { 'Content-Type': 'application/json' },
-                body: { error: 'Gemini API key not configured' }
-            };
+            jsonResponse(500, 'Gemini API key not configured. Add GEMINI_API_KEY in Azure Portal → Settings → Environment variables.');
             return;
         }
 
@@ -52,32 +59,26 @@ module.exports = async function (context, req) {
             ]
         }`;
 
+        context.log('Calling Gemini API...');
         const result = await model.generateContent(prompt);
         const response = await result.response;
         let text = response.text();
+        context.log('Gemini response received, length:', text.length);
 
         // Clean up response - remove markdown code blocks if present
         text = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
 
         const recommendations = JSON.parse(text);
-
-        context.res = {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-            body: recommendations
-        };
+        jsonResponse(200, recommendations);
 
     } catch (error) {
-        context.log.error('Error generating recommendations:', error);
+        context.log.error('Error:', error.message);
+        context.log.error('Stack:', error.stack);
 
-        context.res = {
-            status: 500,
-            headers: { 'Content-Type': 'application/json' },
-            body: { 
-                error: error instanceof SyntaxError 
-                    ? 'Failed to parse AI response' 
-                    : 'Failed to generate recommendations. Please try again.'
-            }
-        };
+        if (error instanceof SyntaxError) {
+            jsonResponse(500, 'Failed to parse AI response');
+        } else {
+            jsonResponse(500, `Failed to generate recommendations: ${error.message}`);
+        }
     }
 };
