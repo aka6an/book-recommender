@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Recommender</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #e4e4e4;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(90deg, #e94560, #0f3460);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            color: #8b8b8b;
+            font-size: 1.1rem;
+        }
+
+        .input-section {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.75rem;
+            font-weight: 500;
+            color: #c4c4c4;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 1rem;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            background: rgba(0, 0, 0, 0.3);
+            color: #fff;
+            font-size: 1rem;
+            resize: vertical;
+            min-height: 100px;
+            transition: border-color 0.3s ease;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #e94560;
+        }
+
+        textarea::placeholder {
+            color: #666;
+        }
+
+        button {
+            width: 100%;
+            padding: 1rem 2rem;
+            margin-top: 1rem;
+            background: linear-gradient(90deg, #e94560, #0f3460);
+            border: none;
+            border-radius: 12px;
+            color: #fff;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(233, 69, 96, 0.3);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .results-section {
+            display: none;
+        }
+
+        .results-section.visible {
+            display: block;
+        }
+
+        .results-header {
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            color: #e94560;
+        }
+
+        .books-grid {
+            display: grid;
+            gap: 1.5rem;
+        }
+
+        .book-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 1.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .book-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .book-number {
+            display: inline-block;
+            background: linear-gradient(90deg, #e94560, #0f3460);
+            color: #fff;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 28px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+        }
+
+        .book-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #fff;
+        }
+
+        .book-author {
+            color: #e94560;
+            font-size: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .book-reason {
+            color: #a0a0a0;
+            line-height: 1.6;
+            font-size: 0.95rem;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 3rem;
+        }
+
+        .loading.visible {
+            display: block;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top-color: #e94560;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: rgba(233, 69, 96, 0.2);
+            border: 1px solid #e94560;
+            border-radius: 12px;
+            padding: 1rem;
+            margin-top: 1rem;
+            display: none;
+        }
+
+        .error.visible {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📚 Book Recommender</h1>
+            <p class="subtitle">Discover your next great read with AI-powered recommendations</p>
+        </header>
+
+        <section class="input-section">
+            <label for="preferences">What kind of books are you looking for?</label>
+            <textarea 
+                id="preferences" 
+                placeholder="E.g., I love mystery novels with strong female leads, set in Victorian England. I enjoyed Sherlock Holmes and Agatha Christie's works..."
+            ></textarea>
+            <button id="getRecommendations">Get Recommendations</button>
+            <div class="error" id="error"></div>
+        </section>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Finding the perfect books for you...</p>
+        </div>
+
+        <section class="results-section" id="results">
+            <h2 class="results-header">Your Recommendations</h2>
+            <div class="books-grid" id="booksGrid"></div>
+        </section>
+    </div>
+
+    <script>
+        const preferencesInput = document.getElementById('preferences');
+        const getRecommendationsBtn = document.getElementById('getRecommendations');
+        const loadingDiv = document.getElementById('loading');
+        const resultsSection = document.getElementById('results');
+        const booksGrid = document.getElementById('booksGrid');
+        const errorDiv = document.getElementById('error');
+
+        getRecommendationsBtn.addEventListener('click', async () => {
+            const preferences = preferencesInput.value.trim();
+
+            if (!preferences) {
+                showError('Please enter your reading preferences');
+                return;
+            }
+
+            // Reset UI
+            hideError();
+            resultsSection.classList.remove('visible');
+            loadingDiv.classList.add('visible');
+            getRecommendationsBtn.disabled = true;
+
+            try {
+                // Azure Static Web Apps serves Functions at /api/<function-route>
+                const response = await fetch('/api/recommendations', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ preferences })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to get recommendations');
+                }
+
+                displayRecommendations(data.recommendations);
+
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                loadingDiv.classList.remove('visible');
+                getRecommendationsBtn.disabled = false;
+            }
+        });
+
+        function displayRecommendations(recommendations) {
+            booksGrid.innerHTML = '';
+
+            recommendations.forEach((book, index) => {
+                const bookCard = document.createElement('div');
+                bookCard.className = 'book-card';
+                bookCard.innerHTML = `
+                    <span class="book-number">${index + 1}</span>
+                    <h3 class="book-title">${escapeHtml(book.title)}</h3>
+                    <p class="book-author">by ${escapeHtml(book.author)}</p>
+                    <p class="book-reason">${escapeHtml(book.reason)}</p>
+                `;
+                booksGrid.appendChild(bookCard);
+            });
+
+            resultsSection.classList.add('visible');
+            resultsSection.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function showError(message) {
+            errorDiv.textContent = message;
+            errorDiv.classList.add('visible');
+        }
+
+        function hideError() {
+            errorDiv.classList.remove('visible');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Allow Enter key to submit (with Ctrl/Cmd)
+        preferencesInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                getRecommendationsBtn.click();
+            }
+        });
+    </script>
+</body>
+</html>
