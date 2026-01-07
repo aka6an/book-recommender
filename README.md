@@ -1,132 +1,76 @@
-# Deploying Book Recommender to Azure Static Web Apps
+# Book Recommender - Azure Static Web Apps
 
-Azure Static Web Apps provides free hosting for static sites with integrated serverless APIs.
+AI-powered book recommendation app using Gemini, with book covers and Amazon purchase links.
+
+## Features
+
+- 🤖 AI recommendations via Google Gemini
+- 📚 Book cover images from Google Books API
+- 🛒 Amazon purchase links
+- 📖 Google Books preview links
+- 📱 Responsive design
 
 ## Project Structure
 
 ```
 book-recommender-swa/
-├── public/                      # Static frontend
+├── public/                     # Static frontend
 │   └── index.html
-├── api/                         # Azure Functions (serverless API)
-│   ├── recommendations/
-│   │   ├── index.js             # Function code
-│   │   └── function.json        # Function config
-│   ├── host.json
-│   ├── local.settings.json      # Local dev settings (don't commit)
-│   └── package.json
-└── staticwebapp.config.json     # SWA routing config
+├── api/                        # Azure Functions
+│   ├── recommendations/        # Main API endpoint
+│   │   ├── index.js
+│   │   └── function.json
+│   ├── health/                 # Health check endpoint
+│   │   ├── index.js
+│   │   └── function.json
+│   ├── package.json
+│   └── host.json
+├── staticwebapp.config.json    # SWA configuration
+└── .gitignore
 ```
 
-## Prerequisites
+## Deployment
 
-1. **GitHub/GitLab/Azure DevOps** repository (SWA deploys from source control)
-2. **Gemini API Key** from [Google AI Studio](https://aistudio.google.com/apikey)
-3. **Azure CLI** (optional) - [Install Guide](https://docs.microsoft.com/cli/azure/install-azure-cli)
-
----
-
-## Method 1: Azure Portal (Easiest)
-
-### Step 1: Push Code to GitHub
+### Step 1: Push to GitHub
 
 ```bash
-# Initialize git repo
 git init
 git add .
 git commit -m "Initial commit"
-
-# Create repo on GitHub, then:
 git remote add origin https://github.com/YOUR_USERNAME/book-recommender.git
 git push -u origin main
 ```
 
-### Step 2: Create Static Web App
+### Step 2: Create Static Web App in Azure Portal
 
 1. Go to [Azure Portal](https://portal.azure.com)
-2. Click **Create a resource** → Search **Static Web App** → **Create**
+2. Create a resource → Search "Static Web App" → Create
 3. Configure:
-   - **Subscription**: Your subscription
-   - **Resource Group**: Create new or select existing
-   - **Name**: `book-recommender-swa`
-   - **Plan type**: Free (or Standard for more features)
-   - **Region**: Select nearest region
-   - **Source**: GitHub
-4. Click **Sign in with GitHub** and authorize
-5. Select:
-   - **Organization**: Your GitHub org/username
-   - **Repository**: `book-recommender`
+   - **Name**: `book-recommender`
+   - **Plan**: Free
+   - **Source**: GitHub (connect your repo)
    - **Branch**: `main`
-6. Build Details:
    - **Build Presets**: Custom
    - **App location**: `/public`
-   - **Api location**: `/api`
+   - **API location**: `/api`
    - **Output location**: (leave empty)
-7. Click **Review + create** → **Create**
+4. Click Create
 
 ### Step 3: Add Environment Variable
 
-1. Navigate to your Static Web App in the portal
-2. Go to **Settings** → **Environment variables**
-3. Click **+ Add**
+1. Go to your Static Web App in Azure Portal
+2. Settings → Environment variables
+3. Add:
    - **Name**: `GEMINI_API_KEY`
-   - **Value**: Your Gemini API key
-   - **Environment**: Production
-4. Click **Save**
+   - **Value**: Your API key from [Google AI Studio](https://aistudio.google.com/apikey)
+4. Click Save
 
-Azure automatically deploys on every push to your repo!
+### Step 4: Verify Deployment
 
----
-
-## Method 2: Azure CLI
-
-### Step 1: Login and Create
-
-```bash
-# Login
-az login
-
-# Install SWA extension if needed
-az extension add --name staticwebapp
-
-# Create resource group
-az group create --name book-recommender-rg --location eastus2
-
-# Create Static Web App (GitHub)
-az staticwebapp create \
-    --name book-recommender-swa \
-    --resource-group book-recommender-rg \
-    --source https://github.com/YOUR_USERNAME/book-recommender \
-    --location eastus2 \
-    --branch main \
-    --app-location "/public" \
-    --api-location "/api" \
-    --login-with-github
-```
-
-### Step 2: Configure Environment Variable
-
-```bash
-az staticwebapp appsettings set \
-    --name book-recommender-swa \
-    --resource-group book-recommender-rg \
-    --setting-names GEMINI_API_KEY="your-gemini-api-key-here"
-```
-
----
-
-## Method 3: VS Code Extension
-
-1. Install [Azure Static Web Apps extension](https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-azurestaticwebapps)
-2. Open command palette: **Azure Static Web Apps: Create Static Web App**
-3. Follow prompts to connect GitHub and configure
-4. Right-click the app → **Application Settings** → Add `GEMINI_API_KEY`
-
----
+- Visit `https://your-app.azurestaticapps.net`
+- Test health endpoint: `https://your-app.azurestaticapps.net/api/health`
 
 ## Local Development
-
-### Option A: SWA CLI (Recommended)
 
 ```bash
 # Install SWA CLI
@@ -135,122 +79,63 @@ npm install -g @azure/static-web-apps-cli
 # Install API dependencies
 cd api && npm install && cd ..
 
-# Update api/local.settings.json with your GEMINI_API_KEY
+# Create local settings file
+cat > api/local.settings.json << EOF
+{
+  "IsEncrypted": false,
+  "Values": {
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "GEMINI_API_KEY": "your-api-key-here"
+  }
+}
+EOF
 
-# Start local dev server
+# Start local server
 swa start public --api-location api
 ```
 
-Access at `http://localhost:4280`
+Visit http://localhost:4280
 
-### Option B: Separate Servers
+## API Endpoints
 
-```bash
-# Terminal 1: Start Functions
-cd api
-npm install
-func start
+### POST /api/recommendations
 
-# Terminal 2: Serve static files
-cd public
-npx serve .
+Request:
+```json
+{
+  "preferences": "I love sci-fi books with philosophical themes"
+}
 ```
 
----
-
-## GitHub Actions Workflow
-
-Azure automatically creates `.github/workflows/azure-static-web-apps-*.yml`. Example:
-
-```yaml
-name: Azure Static Web Apps CI/CD
-
-on:
-  push:
-    branches: [main]
-  pull_request:
-    types: [opened, synchronize, reopened, closed]
-    branches: [main]
-
-jobs:
-  build_and_deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Build And Deploy
-        uses: Azure/static-web-apps-deploy@v1
-        with:
-          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          action: "upload"
-          app_location: "/public"
-          api_location: "/api"
-          output_location: ""
+Response:
+```json
+{
+  "recommendations": [
+    {
+      "title": "Dune",
+      "author": "Frank Herbert",
+      "reason": "A sci-fi epic exploring politics, religion, and ecology.",
+      "coverUrl": "https://books.google.com/...",
+      "amazonUrl": "https://www.amazon.com/s?k=...",
+      "previewUrl": "https://books.google.com/books?id=..."
+    }
+  ]
+}
 ```
 
----
+### GET /api/health
 
-## Comparison: Static Web Apps vs App Service
-
-| Feature | Static Web Apps | App Service |
-|---------|----------------|-------------|
-| **Cost** | Free tier available | ~$13+/month (B1) |
-| **API Model** | Serverless Functions | Express/Node server |
-| **Scaling** | Automatic | Manual/Auto-scale rules |
-| **Cold Starts** | Yes (serverless) | No (if Always On) |
-| **Custom Domains** | Free SSL included | Free SSL included |
-| **Best For** | SPAs, JAMstack, light APIs | Full server control, heavy APIs |
-
----
+Returns API status and configuration check.
 
 ## Troubleshooting
 
-### View Logs
-
-```bash
-# Stream function logs
-az staticwebapp show --name book-recommender-swa --query "defaultHostname"
-
-# In portal: Static Web App → Functions → Click function → Monitor
-```
-
-### Common Issues
-
 | Issue | Solution |
 |-------|----------|
-| API returns 404 | Check `api_location` is `/api` in workflow |
-| Function timeout | Free tier has 45s limit; optimize or upgrade |
-| CORS errors | Handled automatically in SWA |
-| Missing env vars | Add in Portal → Settings → Environment variables |
-| Build fails | Check GitHub Actions logs for errors |
+| 404 on /api/* | Check `api_location: "/api"` in GitHub workflow |
+| Empty response | Verify `GEMINI_API_KEY` in Environment variables |
+| Model not found | Using `gemini-2.0-flash` (1.5 deprecated) |
+| No book covers | Google Books API may not have the book |
 
-### Function Cold Starts
+## License
 
-Serverless functions may have 1-3 second cold starts. For production:
-- Keep functions lightweight
-- Consider Standard plan for pre-warmed instances
-- Or switch to App Service for always-on
-
----
-
-## Security Notes
-
-1. **Never commit `local.settings.json`** - Add to `.gitignore`
-2. **Use environment variables** for all secrets
-3. **Enable authentication** if needed via portal
-
----
-
-## Quick Reference
-
-```bash
-# View app URL
-az staticwebapp show -n book-recommender-swa -g book-recommender-rg --query defaultHostname -o tsv
-
-# List environment variables
-az staticwebapp appsettings list -n book-recommender-swa -g book-recommender-rg
-
-# Delete when done
-az group delete -n book-recommender-rg --yes
-```
+MIT

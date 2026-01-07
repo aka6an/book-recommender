@@ -20,7 +20,7 @@
         }
 
         .container {
-            max-width: 800px;
+            max-width: 900px;
             margin: 0 auto;
         }
 
@@ -131,7 +131,7 @@
             border: 1px solid rgba(255, 255, 255, 0.1);
             transition: transform 0.3s ease, box-shadow 0.3s ease;
             display: grid;
-            grid-template-columns: auto 1fr;
+            grid-template-columns: 120px 1fr;
             gap: 1.5rem;
         }
 
@@ -141,7 +141,6 @@
         }
 
         .book-cover-container {
-            width: 120px;
             flex-shrink: 0;
         }
 
@@ -181,7 +180,7 @@
             line-height: 28px;
             font-weight: 600;
             font-size: 0.9rem;
-            margin-bottom: 1rem;
+            margin-bottom: 0.75rem;
         }
 
         .book-title {
@@ -202,12 +201,12 @@
             line-height: 1.6;
             font-size: 0.95rem;
             margin-bottom: 1rem;
+            flex-grow: 1;
         }
 
         .book-links {
             display: flex;
             gap: 0.75rem;
-            margin-top: auto;
             flex-wrap: wrap;
         }
 
@@ -246,21 +245,6 @@
             background: rgba(255, 255, 255, 0.15);
         }
 
-        @media (max-width: 500px) {
-            .book-card {
-                grid-template-columns: 1fr;
-                text-align: center;
-            }
-            
-            .book-cover-container {
-                margin: 0 auto;
-            }
-            
-            .book-links {
-                justify-content: center;
-            }
-        }
-
         .loading {
             display: none;
             text-align: center;
@@ -296,6 +280,33 @@
 
         .error.visible {
             display: block;
+        }
+
+        @media (max-width: 600px) {
+            body {
+                padding: 1rem;
+            }
+
+            h1 {
+                font-size: 1.8rem;
+            }
+
+            .book-card {
+                grid-template-columns: 1fr;
+                text-align: center;
+            }
+
+            .book-cover-container {
+                margin: 0 auto;
+            }
+
+            .book-links {
+                justify-content: center;
+            }
+
+            .book-number {
+                margin: 0 auto 0.75rem;
+            }
         }
     </style>
 </head>
@@ -343,50 +354,37 @@
                 return;
             }
 
-            // Reset UI
             hideError();
             resultsSection.classList.remove('visible');
             loadingDiv.classList.add('visible');
             getRecommendationsBtn.disabled = true;
 
             try {
-                // Azure Static Web Apps serves Functions at /api/<function-route>
                 const response = await fetch('/api/recommendations', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ preferences })
                 });
 
-                // Get response as text first to diagnose issues
                 const responseText = await response.text();
-                
-                // Debug: log what we actually received
-                console.log('Response status:', response.status);
-                console.log('Response text:', responseText);
 
                 if (!responseText) {
-                    throw new Error(`Empty response from API (status: ${response.status}). Check that GEMINI_API_KEY is configured.`);
+                    throw new Error('Empty response from API');
                 }
 
                 let data;
                 try {
                     data = JSON.parse(responseText);
-                } catch (parseError) {
-                    throw new Error(`Invalid JSON response: ${responseText.substring(0, 200)}`);
+                } catch {
+                    throw new Error(`Invalid response: ${responseText.substring(0, 100)}`);
                 }
 
                 if (!response.ok) {
-                    throw new Error(data.error || `API error (status: ${response.status})`);
+                    throw new Error(data.error || 'Failed to get recommendations');
                 }
 
-                if (!data.recommendations) {
-                    throw new Error(`Response missing recommendations field. Got: ${JSON.stringify(Object.keys(data))}`);
-                }
-
-                if (!Array.isArray(data.recommendations)) {
-                    throw new Error(`recommendations is not an array. Type: ${typeof data.recommendations}`);
+                if (!data.recommendations || !Array.isArray(data.recommendations)) {
+                    throw new Error('Invalid response format');
                 }
 
                 displayRecommendations(data.recommendations);
@@ -405,37 +403,27 @@
             recommendations.forEach((book, index) => {
                 const bookCard = document.createElement('div');
                 bookCard.className = 'book-card';
-                
-                // Cover image or placeholder
-                const coverHtml = book.coverUrl 
-                    ? `<img src="${escapeHtml(book.coverUrl)}" alt="${escapeHtml(book.title)} cover" class="book-cover" loading="lazy">`
+
+                const coverHtml = book.coverUrl
+                    ? `<img src="${escapeHtml(book.coverUrl)}" alt="${escapeHtml(book.title)}" class="book-cover" loading="lazy">`
                     : `<div class="book-cover-placeholder">📚</div>`;
-                
-                // Build links
+
                 let linksHtml = '';
                 if (book.amazonUrl) {
-                    linksHtml += `<a href="${escapeHtml(book.amazonUrl)}" target="_blank" rel="noopener noreferrer" class="book-link amazon-link">
-                        🛒 Buy on Amazon
-                    </a>`;
+                    linksHtml += `<a href="${escapeHtml(book.amazonUrl)}" target="_blank" rel="noopener noreferrer" class="book-link amazon-link">🛒 Buy on Amazon</a>`;
                 }
                 if (book.previewUrl) {
-                    linksHtml += `<a href="${escapeHtml(book.previewUrl)}" target="_blank" rel="noopener noreferrer" class="book-link preview-link">
-                        📖 Preview
-                    </a>`;
+                    linksHtml += `<a href="${escapeHtml(book.previewUrl)}" target="_blank" rel="noopener noreferrer" class="book-link preview-link">📖 Preview</a>`;
                 }
-                
+
                 bookCard.innerHTML = `
-                    <div class="book-cover-container">
-                        ${coverHtml}
-                    </div>
+                    <div class="book-cover-container">${coverHtml}</div>
                     <div class="book-info">
                         <span class="book-number">${index + 1}</span>
                         <h3 class="book-title">${escapeHtml(book.title)}</h3>
                         <p class="book-author">by ${escapeHtml(book.author)}</p>
                         <p class="book-reason">${escapeHtml(book.reason)}</p>
-                        <div class="book-links">
-                            ${linksHtml}
-                        </div>
+                        <div class="book-links">${linksHtml}</div>
                     </div>
                 `;
                 booksGrid.appendChild(bookCard);
@@ -460,7 +448,6 @@
             return div.innerHTML;
         }
 
-        // Allow Enter key to submit (with Ctrl/Cmd)
         preferencesInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                 getRecommendationsBtn.click();

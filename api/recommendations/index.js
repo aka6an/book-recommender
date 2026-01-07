@@ -1,6 +1,6 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-// Fetch book cover and details from Google Books API
+// Fetch book cover and details from Google Books API (free, no key required)
 async function getBookDetails(title, author) {
     try {
         const query = encodeURIComponent(`${title} ${author}`);
@@ -18,12 +18,12 @@ async function getBookDetails(title, author) {
             const book = data.items[0].volumeInfo;
             const imageLinks = book.imageLinks || {};
             
-            // Get the best available image (prefer larger sizes)
+            // Get the best available image
             const coverImage = imageLinks.thumbnail || 
                               imageLinks.smallThumbnail || 
                               null;
             
-            // Convert http to https and optionally increase size
+            // Convert http to https and increase image size
             const coverUrl = coverImage 
                 ? coverImage.replace('http://', 'https://').replace('zoom=1', 'zoom=2')
                 : null;
@@ -44,17 +44,15 @@ async function getBookDetails(title, author) {
 
 // Generate Amazon search URL
 function getAmazonLink(title, author, isbn) {
-    // If we have ISBN, use it for more accurate results
     if (isbn) {
         return `https://www.amazon.com/s?k=${encodeURIComponent(isbn)}&i=stripbooks`;
     }
-    // Otherwise search by title and author
     const query = encodeURIComponent(`${title} ${author}`);
     return `https://www.amazon.com/s?k=${query}&i=stripbooks`;
 }
 
 module.exports = async function (context, req) {
-    context.log('Function triggered. Method:', req.method);
+    context.log('Recommendations function triggered');
     
     // Handle CORS preflight
     if (req.method === 'OPTIONS') {
@@ -69,7 +67,6 @@ module.exports = async function (context, req) {
         return;
     }
 
-    // Ensure we always return JSON
     const jsonResponse = (status, body) => {
         context.res = {
             status,
@@ -79,8 +76,6 @@ module.exports = async function (context, req) {
     };
 
     try {
-        context.log('Request body:', JSON.stringify(req.body));
-        
         const preferences = req.body?.preferences;
 
         if (!preferences || preferences.trim() === '') {
@@ -89,10 +84,8 @@ module.exports = async function (context, req) {
         }
 
         const apiKey = process.env.GEMINI_API_KEY;
-        context.log('API Key configured:', !!apiKey);
-        
         if (!apiKey) {
-            jsonResponse(500, 'Gemini API key not configured. Add GEMINI_API_KEY in Azure Portal → Settings → Environment variables.');
+            jsonResponse(500, 'GEMINI_API_KEY not configured');
             return;
         }
 
@@ -101,31 +94,28 @@ module.exports = async function (context, req) {
 
         const prompt = `Based on these reading preferences: "${preferences}"
         
-        Recommend exactly 3 books. Return ONLY valid JSON in this exact format, no markdown or extra text:
+Recommend exactly 3 books. Return ONLY valid JSON in this exact format, no markdown or extra text:
+{
+    "recommendations": [
         {
-            "recommendations": [
-                {
-                    "title": "Book Title",
-                    "author": "Author Name",
-                    "reason": "Brief explanation why this book matches the preferences (2-3 sentences)"
-                }
-            ]
-        }`;
+            "title": "Book Title",
+            "author": "Author Name",
+            "reason": "Brief explanation why this book matches the preferences (2-3 sentences)"
+        }
+    ]
+}`;
 
         context.log('Calling Gemini API...');
         const result = await model.generateContent(prompt);
         const response = await result.response;
         let text = response.text();
-        context.log('Gemini raw response:', text);
 
-        // Clean up response - remove markdown code blocks if present
+        // Clean up response
         text = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-        context.log('Gemini cleaned response:', text);
 
         const parsed = JSON.parse(text);
-        context.log('Parsed structure:', JSON.stringify(Object.keys(parsed)));
         
-        // Handle different possible response structures
+        // Handle different response structures
         let recommendations;
         if (parsed.recommendations) {
             recommendations = parsed.recommendations;
@@ -134,17 +124,15 @@ module.exports = async function (context, req) {
         } else if (parsed.books) {
             recommendations = parsed.books;
         } else {
-            context.log('Unexpected structure, full parsed:', JSON.stringify(parsed));
-            jsonResponse(500, `Unexpected response structure: ${JSON.stringify(Object.keys(parsed))}`);
+            jsonResponse(500, 'Unexpected AI response structure');
             return;
         }
 
-        // Enrich each recommendation with cover image and Amazon link
-        context.log('Enriching recommendations with book details...');
+        // Enrich with cover images and purchase links
+        context.log('Fetching book details...');
         const enrichedRecommendations = await Promise.all(
             recommendations.map(async (book) => {
                 const details = await getBookDetails(book.title, book.author);
-                
                 return {
                     ...book,
                     coverUrl: details?.coverUrl || null,
@@ -154,13 +142,10 @@ module.exports = async function (context, req) {
             })
         );
 
-        context.log('Enrichment complete');
         jsonResponse(200, { recommendations: enrichedRecommendations });
 
     } catch (error) {
         context.log.error('Error:', error.message);
-        context.log.error('Stack:', error.stack);
-
         if (error instanceof SyntaxError) {
             jsonResponse(500, 'Failed to parse AI response');
         } else {
