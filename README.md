@@ -1,6 +1,7 @@
 # Book Recommender - Azure Static Web Apps
 
 AI-powered book recommendation app using Gemini, with book covers and Amazon purchase links.
+https://br.o365pti.net/
 
 ## Features
 
